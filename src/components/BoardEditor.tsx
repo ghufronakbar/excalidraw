@@ -38,13 +38,14 @@ export default function BoardEditor({ board, role }: BoardEditorProps) {
     const [name, setName] = useState(board.name);
     const [isSaving, setIsSaving] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
     const [isPending, startTransition] = useTransition();
 
     const isViewOnly = role === "guest";
 
-    // Auto-save every 30 seconds (only for users with edit permission)
+    // Auto-save every 30 seconds (only when enabled and user has edit permission)
     useEffect(() => {
-        if (isViewOnly) return;
+        if (isViewOnly || !autoSaveEnabled) return;
 
         const interval = setInterval(() => {
             if (excalidrawAPI) {
@@ -54,7 +55,7 @@ export default function BoardEditor({ board, role }: BoardEditorProps) {
 
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [excalidrawAPI, isViewOnly]);
+    }, [excalidrawAPI, isViewOnly, autoSaveEnabled]);
 
     const handleSave = useCallback(async () => {
         if (!excalidrawAPI || isSaving || isViewOnly) return;
@@ -82,6 +83,21 @@ export default function BoardEditor({ board, role }: BoardEditorProps) {
             setIsSaving(false);
         }
     }, [excalidrawAPI, board.id, name, isSaving, isViewOnly]);
+
+    // Keyboard shortcut: Ctrl+S (Windows) / Cmd+S (Mac)
+    useEffect(() => {
+        if (isViewOnly) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+                e.preventDefault();
+                handleSave();
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isViewOnly, handleSave]);
 
     const handleDelete = async () => {
         if (confirm("Apakah Anda yakin ingin menghapus board ini?")) {
@@ -128,6 +144,22 @@ export default function BoardEditor({ board, role }: BoardEditorProps) {
                 <div className="flex items-center gap-3">
                     {!isViewOnly && (
                         <>
+                            {/* Auto-save toggle */}
+                            <button
+                                onClick={() => setAutoSaveEnabled(!autoSaveEnabled)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-sm ${autoSaveEnabled
+                                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                                    : "bg-slate-700/50 text-slate-400 border border-slate-600"
+                                    }`}
+                                title={autoSaveEnabled ? "Auto-save enabled (30s)" : "Auto-save disabled"}
+                            >
+                                <div className={`w-8 h-4 rounded-full relative transition-colors ${autoSaveEnabled ? "bg-emerald-500" : "bg-slate-600"
+                                    }`}>
+                                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${autoSaveEnabled ? "translate-x-4" : "translate-x-0.5"
+                                        }`} />
+                                </div>
+                                <span className="hidden sm:inline">Auto</span>
+                            </button>
                             {lastSaved && (
                                 <span className="text-sm text-slate-500 hidden sm:inline">
                                     Saved {lastSaved.toLocaleTimeString("id-ID")}
